@@ -160,5 +160,5 @@ def test_handler(msg):
 	print(str(msg))
 
 if __name__ == '__main__':
-	with GroupmeWebSocket(test_handler,"de57edc08d93013579b821d2551dddf2","4695765") as gws:
+	with GroupmeWebSocket(test_handler,"access_token","user_id") as gws:
 		gws.run_1()
