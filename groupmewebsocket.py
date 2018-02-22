@@ -3,11 +3,13 @@ import json
 import websocket
 import datetime
 import time
-import threading 
+import threading
+import sys 
 
 class GroupmeWebSocket:
 
 	FAYE_URL = "https://push.groupme.com/faye"
+	GET_ME_URL = "https://api.groupme.com/v3/users/me"
 	WSS_HOST = "wss://push.groupme.com/faye"
 	TIMEOUT_SECONDS = 60
 
@@ -17,13 +19,14 @@ class GroupmeWebSocket:
 	# client_id: groupme client_id retrieved from the handshake. Changes every ~10 minutes.
 	# ws: the websocket object
 	# id: request id, needs to be incremented with every call
-	def __init__(self,handler,access_token,user_id):
+	def __init__(self,handler,access_token,debug=False):
 		self.handler = handler
+		self.user_id = self.get_user_id(access_token)
 		self.access_token = access_token
-		self.user_id = user_id
 		self.client_id = None
 		self.ws = None
 		self.id = 0
+		self.debug = debug
 
 	def __enter__(self):
 		self.open_socket()
@@ -40,6 +43,14 @@ class GroupmeWebSocket:
 	def __get_id(self):
 		self.id += 1
 		return self.id
+
+	# Gets user_id related to token 
+	def get_user_id(self,access_token):
+		return requests.get(self.GET_ME_URL,
+			headers={"Content-type": "application/json", "X-Access-Token": access_token}).json().get("response").get("id")
+
+	def debug_out(self,msg):
+		if self.debug: print(str(msg))
 
 	# Returns object for the initial handshake with Faye
 	def handshake(self,connection_types=["websocket"]):
@@ -77,10 +88,12 @@ class GroupmeWebSocket:
 
 	# Creates & assigns the websocket object
 	def open_socket(self):
+		self.debug_out("Opening socket")
 		self.ws = websocket.create_connection(self.WSS_HOST,self.TIMEOUT_SECONDS)
 
 	def close_socket(self):
 		if self.ws is not None: self.ws.close()
+		self.debug_out("Socket closed")
 
 	def is_socket_open(self):
 		if self.ws is not None:
@@ -103,22 +116,26 @@ class GroupmeWebSocket:
 				response = json.loads(recv)
 			except websocket._exceptions.WebSocketConnectionClosedException as err:
 				# Socket is closed, exit with -1
+				self.debug_out("Error! Socket is already closed.")
 				return -1
 			except json.decoder.JSONDecodeError as err:
+				self.debug_out("Error! Could not decode JSON.")
 				return -1
 			if response[0].get("channel") == "/meta/connect":
 				# Websocket needs to reconnect, client_id is reset
+				self.debug_out("Reconnecting socket")
 				self.client_id = response[0].get("clientId")
 				self.ws.send(json.dumps(self.poll()))
 			elif response[0].get("data").get("type") == "line.create":
 				# New event, pass message JSON to handler
+				self.debug_out("New message, sending to handler")
 				self.handler(response)
 			else:
 				# Ping, do nothing
 				pass
 		return 0
 
-	def run_1(self,seconds=60):
+	def run(self,seconds=3600):
 		end_time = datetime.datetime.now() + datetime.timedelta(seconds=seconds)
 		self.connect_to_faye()
 		self.ws.send(json.dumps(self.poll()))
@@ -128,37 +145,10 @@ class GroupmeWebSocket:
 			# wait 1 second before checking the time again
 			time.sleep(1)
 
-	def run(self,seconds=3600):
-		end_time = datetime.datetime.now() + datetime.timedelta(seconds=seconds)
-		self.connect_to_faye()
-		if self.is_socket_open(): 
-			self.ws.send(json.dumps(self.poll()))
-		else:
-			# Method should not proceed if the websocket not been created
-			return -1
-		while (datetime.datetime.now() < end_time):
-			try:
-				response = json.loads(self.ws.recv())
-			except websocket._exceptions.WebSocketConnectionClosedException as err:
-				# Socket is closed, exit with -1
-				return -1
-			
-			if response[0].get("channel") == "/meta/connect":
-				# Websocket needs to reconnect, client_id is reset
-				self.client_id = response[0].get("clientId")
-				self.ws.send(json.dumps(self.poll()))
-			elif response[0].get("data").get("type") == "line.create":
-				# New event, pass message JSON to handler
-				self.handler(response)
-			else:
-				self.handler(response)
-				# pass
-		return 0
-
 # Testing purposes only
 def test_handler(msg):
 	print(str(msg))
 
 if __name__ == '__main__':
-	with GroupmeWebSocket(test_handler,"access_token","user_id") as gws:
-		gws.run_1()
+	with GroupmeWebSocket(test_handler,sys.argv[1],True) as gws:
+		gws.run()
