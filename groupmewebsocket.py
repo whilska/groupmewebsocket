@@ -4,10 +4,12 @@ import websocket
 import datetime
 import time
 import threading
-import sys 
+import sys
+
+__all__ = ["GroupmeWebSocket"]
+
 
 class GroupmeWebSocket:
-
 	FAYE_URL = "https://push.groupme.com/faye"
 	GET_ME_URL = "https://api.groupme.com/v3/users/me"
 	WSS_HOST = "wss://push.groupme.com/faye"
@@ -19,7 +21,7 @@ class GroupmeWebSocket:
 	# client_id: groupme client_id retrieved from the handshake. Changes every ~10 minutes.
 	# ws: the websocket object
 	# id: request id, needs to be incremented with every call
-	def __init__(self,handler,access_token,debug=False):
+	def __init__(self, handler, access_token, debug=False):
 		self.handler = handler
 		self.user_id = self.get_user_id(access_token)
 		self.access_token = access_token
@@ -32,12 +34,12 @@ class GroupmeWebSocket:
 		self.open_socket()
 		return self
 
-	def __exit__(self,exc_type,exc_value,traceback):
+	def __exit__(self, exc_type, exc_value, traceback):
 		self.close_socket()
 
-	def post_to_faye(self,data):
+	def post_to_faye(self, data):
 		return requests.post(url=self.FAYE_URL,
-			data=json.dumps(data),headers={"Content-type": "application/json"})
+							 data=json.dumps(data), headers={"Content-type": "application/json"})
 
 	# Increment id for every call, otherwise websocket connection won't open
 	def __get_id(self):
@@ -45,15 +47,20 @@ class GroupmeWebSocket:
 		return self.id
 
 	# Gets user_id related to token 
-	def get_user_id(self,access_token):
-		return requests.get(self.GET_ME_URL,
-			headers={"Content-type": "application/json", "X-Access-Token": access_token}).json().get("response").get("id")
+	def get_user_id(self, access_token):
+		json_body = requests.get(headers={"Content-type": "application/json", "X-Access-Token": access_token},
+								 url=self.GET_ME_URL).json()
+		try:
+			user_id = json_body.get("response").get("id")
+		except AttributeError as err:
+			user_id = None
+		return user_id
 
-	def debug_out(self,msg):
+	def debug_out(self, msg):
 		if self.debug: print(str(msg))
 
 	# Returns object for the initial handshake with Faye
-	def handshake(self,connection_types=["websocket"]):
+	def handshake(self, connection_types=["websocket"]):
 		return [
 			{
 				"channel": "/meta/handshake",
@@ -66,30 +73,30 @@ class GroupmeWebSocket:
 	# Returns object for subscribing to user channel
 	def subscribe(self):
 		return [
-		  {
-		    "channel": "/meta/subscribe",
-		    "clientId": self.client_id,
-		    "subscription":"/user/{0}".format(self.user_id),
-		    "id": self.__get_id(),
-		    "ext": {"access_token": self.access_token}
-		  }
+			{
+				"channel": "/meta/subscribe",
+				"clientId": self.client_id,
+				"subscription": "/user/{0}".format(self.user_id),
+				"id": self.__get_id(),
+				"ext": {"access_token": self.access_token}
+			}
 		]
 
 	# Object needed for socket request
-	def poll(self,connection_type="websocket"):
+	def poll(self, connection_type="websocket"):
 		return [
-		  {
-		    "channel": "/meta/connect",
-		    "clientId": self.client_id,
-		    "connectionType": connection_type,
-		    "id": self.__get_id()
-		  }
+			{
+				"channel": "/meta/connect",
+				"clientId": self.client_id,
+				"connectionType": connection_type,
+				"id": self.__get_id()
+			}
 		]
 
 	# Creates & assigns the websocket object
 	def open_socket(self):
 		self.debug_out("Opening socket")
-		self.ws = websocket.create_connection(self.WSS_HOST,self.TIMEOUT_SECONDS)
+		self.ws = websocket.create_connection(self.WSS_HOST, self.TIMEOUT_SECONDS)
 
 	def close_socket(self):
 		if self.ws is not None: self.ws.close()
@@ -99,7 +106,7 @@ class GroupmeWebSocket:
 		if self.ws is not None:
 			return True
 		else:
-		 	return False
+			return False
 
 	def connect_to_faye(self):
 		handshake = self.post_to_faye(self.handshake()).json()
@@ -135,7 +142,10 @@ class GroupmeWebSocket:
 				pass
 		return 0
 
-	def run(self,seconds=3600):
+	def run(self, seconds=3600):
+		if self.user_id is None:
+			self.debug_out("User ID not found, exiting")
+			return
 		end_time = datetime.datetime.now() + datetime.timedelta(seconds=seconds)
 		self.connect_to_faye()
 		self.ws.send(json.dumps(self.poll()))
@@ -145,10 +155,12 @@ class GroupmeWebSocket:
 			# wait 1 second before checking the time again
 			time.sleep(1)
 
+
 # Testing purposes only
 def test_handler(msg):
 	print(str(msg))
 
+
 if __name__ == '__main__':
-	with GroupmeWebSocket(test_handler,sys.argv[1],True) as gws:
+	with GroupmeWebSocket(test_handler, sys.argv[1], True) as gws:
 		gws.run()
