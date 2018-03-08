@@ -38,8 +38,11 @@ class GroupmeWebSocket:
 		self.close_socket()
 
 	def post_to_faye(self, data):
-		return requests.post(url=self.FAYE_URL,
-							 data=json.dumps(data), headers={"Content-type": "application/json"})
+		response = requests.post(url=self.FAYE_URL,
+								data=json.dumps(data),
+								headers={"Content-type": "application/json"})
+		self.debug_out(response.json())
+		return response
 
 	# Increment id for every call, otherwise websocket connection won't open
 	def __get_id(self):
@@ -57,7 +60,7 @@ class GroupmeWebSocket:
 		return user_id
 
 	def debug_out(self, msg):
-		if self.debug: print(str(msg))
+		if self.debug: print(self.__class__.__name__ + ": " + str(msg))
 
 	# Returns object for the initial handshake with Faye
 	def handshake(self, connection_types=["websocket"]):
