@@ -131,6 +131,7 @@ class GroupmeWebSocket:
 			except json.decoder.JSONDecodeError as err:
 				self.debug_out("Error! Could not decode JSON.")
 				return -1
+			self.debug_out(response)
 			if response[0].get("channel") == "/meta/connect":
 				# Websocket needs to reconnect, client_id is reset
 				self.debug_out("Reconnecting socket")
@@ -138,7 +139,7 @@ class GroupmeWebSocket:
 				self.ws.send(json.dumps(self.poll()))
 			elif response[0].get("data").get("type") == "line.create":
 				# New event, pass message JSON to handler
-				self.debug_out("New message, sending to handler")
+				self.debug_out("New message: " + str(response))
 				self.handler(response)
 			else:
 				# Ping, do nothing
