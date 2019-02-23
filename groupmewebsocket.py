@@ -165,6 +165,7 @@ def test_handler(msg):
 	print(str(msg))
 
 
+# Argv[1] should be the access token
 if __name__ == '__main__':
 	with GroupmeWebSocket(test_handler, sys.argv[1], True) as gws:
 		gws.run()
