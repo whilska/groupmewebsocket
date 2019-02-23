@@ -137,7 +137,7 @@ class GroupmeWebSocket:
 				self.debug_out("Reconnecting socket")
 				self.client_id = response[0].get("clientId")
 				self.ws.send(json.dumps(self.poll()))
-			elif response[0].get("data").get("type") == "line.create":
+			elif response[0].get("data").get("type") in ["line.create", "direct_message.create"]:
 				# New event, pass message JSON to handler
 				self.debug_out("New message: " + str(response))
 				self.handler(response)
