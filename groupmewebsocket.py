@@ -55,7 +55,7 @@ class GroupmeWebSocket:
 								 url=self.GET_ME_URL).json()
 		try:
 			user_id = json_body.get("response").get("id")
-		except AttributeError as err:
+		except AttributeError:
 			user_id = None
 		return user_id
 
