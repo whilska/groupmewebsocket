@@ -124,7 +124,7 @@ class GroupmeWebSocket:
 			try:
 				recv = self.ws.recv()
 				response = json.loads(recv)
-			except websocket._exceptions.WebSocketConnectionClosedException as err:
+			except websocket._exceptions.WebSocketConnectionClosedException:
 				# Socket is closed, exit with -1
 				self.debug_out("Error! Socket is already closed.")
 				return -1
